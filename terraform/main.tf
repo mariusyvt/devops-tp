@@ -1,111 +1,127 @@
 # ─────────────────────────────────────────────────────
-# Terraform - Infrastructure as Code
-# Provision a simple server on AWS (or local with Docker)
+# Terraform LOCAL - Provider Docker
+# Crée les containers directement sur ta machine
+# Usage:
+#   terraform init
+#   terraform plan
+#   terraform apply
+#   terraform destroy
 # ─────────────────────────────────────────────────────
 
 terraform {
   required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.0"
+    docker = {
+      source  = "kreuzwerker/docker"
+      version = "~> 3.0"
     }
   }
 }
 
-provider "aws" {
-  region = var.aws_region
+provider "docker" {}
+
+# ── Réseau partagé entre les containers ──
+resource "docker_network" "tp_network" {
+  name = "tp_network"
 }
 
-# Variables
-variable "aws_region" {
-  default = "eu-west-1"
-}
-variable "instance_type" {
-  default = "t3.micro"
-}
-variable "app_name" {
-  default = "devops-tp"
+# ── PostgreSQL ──
+resource "docker_image" "postgres" {
+  name = "postgres:15-alpine"
 }
 
-# Security Group
-resource "aws_security_group" "app_sg" {
-  name        = "${var.app_name}-sg"
-  description = "Security group for DevOps TP"
+resource "docker_container" "postgres" {
+  name  = "tp_postgres"
+  image = docker_image.postgres.image_id
 
-  ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "SSH"
-  }
-  ingress {
-    from_port   = 3000
-    to_port     = 3000
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "Frontend"
-  }
-  ingress {
-    from_port   = 3001
-    to_port     = 3001
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "Backend API"
-  }
-  ingress {
-    from_port   = 3002
-    to_port     = 3002
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "Grafana"
-  }
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
+  env = [
+    "POSTGRES_DB=taskdb",
+    "POSTGRES_USER=postgres",
+    "POSTGRES_PASSWORD=password"
+  ]
+
+  ports {
+    internal = 5432
+    external = 5432
   }
 
-  tags = {
-    Name    = "${var.app_name}-sg"
-    Project = var.app_name
+  networks_advanced {
+    name = docker_network.tp_network.name
+  }
+
+  healthcheck {
+    test     = ["CMD-SHELL", "pg_isready -U postgres"]
+    interval = "10s"
+    timeout  = "5s"
+    retries  = 5
   }
 }
 
-# EC2 Instance
-resource "aws_instance" "app_server" {
-  ami           = "ami-0905a3c97561e0b69" # Ubuntu 22.04 eu-west-1
-  instance_type = var.instance_type
-
-  vpc_security_group_ids = [aws_security_group.app_sg.id]
-
-  user_data = <<-EOF
-    #!/bin/bash
-    apt-get update -y
-    apt-get install -y docker.io docker-compose-plugin git
-    systemctl start docker
-    systemctl enable docker
-    usermod -aG docker ubuntu
-  EOF
-
-  tags = {
-    Name    = "${var.app_name}-server"
-    Project = var.app_name
+# ── Backend Node.js ──
+resource "docker_image" "backend" {
+  name = "tp-backend"
+  build {
+    context = "../backend"
   }
 }
 
-# Outputs
-output "server_ip" {
-  value       = aws_instance.app_server.public_ip
-  description = "Public IP of the server"
+resource "docker_container" "backend" {
+  name  = "tp_backend"
+  image = docker_image.backend.image_id
+
+  env = [
+    "DB_HOST=tp_postgres",
+    "DB_PORT=5432",
+    "DB_NAME=taskdb",
+    "DB_USER=postgres",
+    "DB_PASSWORD=password",
+    "PORT=3001"
+  ]
+
+  ports {
+    internal = 3001
+    external = 3001
+  }
+
+  networks_advanced {
+    name = docker_network.tp_network.name
+  }
+
+  depends_on = [docker_container.postgres]
 }
+
+# ── Frontend React ──
+resource "docker_image" "frontend" {
+  name = "tp-frontend"
+  build {
+    context = "../frontend"
+  }
+}
+
+resource "docker_container" "frontend" {
+  name  = "tp_frontend"
+  image = docker_image.frontend.image_id
+
+  ports {
+    internal = 80
+    external = 3000
+  }
+
+  networks_advanced {
+    name = docker_network.tp_network.name
+  }
+
+  depends_on = [docker_container.backend]
+}
+
+# ── Outputs ──
 output "frontend_url" {
-  value = "http://${aws_instance.app_server.public_ip}:3000"
+  value = "http://localhost:3000"
 }
+
 output "backend_url" {
-  value = "http://${aws_instance.app_server.public_ip}:3001"
+  value = "http://localhost:3001"
 }
-output "grafana_url" {
-  value = "http://${aws_instance.app_server.public_ip}:3002"
+
+output "health_check" {
+  value = "http://localhost:3001/health"
 }

@@ -1,189 +1,84 @@
-# 🚀 DevOps TP — Task Manager
+# DevOps TP — Task Manager
 
-Application complète démontrant le toolchain DevOps :
-**React + Node.js + PostgreSQL + Docker + CI/CD + IaC + Monitoring**
+Stack : **React + Node.js + PostgreSQL + Docker + CI/CD + Terraform + Ansible + Monitoring**
 
----
-
-## 📁 Structure du projet
+## Structure
 
 ```
 devops-tp/
 ├── frontend/          # React (port 3000)
 ├── backend/           # Node.js + Express (port 3001)
-├── monitoring/        # Prometheus + Grafana (port 3002)
+├── monitoring/        # Prometheus + Grafana
 ├── terraform/         # Infrastructure AWS
 ├── ansible/           # Déploiement automatisé
 └── .github/workflows/ # CI/CD GitHub Actions
 ```
 
----
+## Démarrage rapide
 
-## ⚡ Démarrage rapide (local)
-
-### Prérequis
-- Docker + Docker Compose
-- Node.js 18+ (pour développement local)
-
-### Lancer toute l'application
+**Prérequis** : Docker + Docker Compose
 
 ```bash
-# Cloner le projet
-git clone https://github.com/YOUR_USERNAME/devops-tp.git
-cd devops-tp
-
-# Démarrer tous les services
-docker compose up -d
-
-# Vérifier les logs
-docker compose logs -f
+docker compose up --build
 ```
 
-### Accès aux services
+| Service    | URL                          | Login       |
+| ---------- | ---------------------------- | ----------- |
+| Frontend   | http://localhost:3000        | -           |
+| Backend    | http://localhost:3001        | -           |
+| Health     | http://localhost:3001/health | -           |
+| Prometheus | http://localhost:9090        | -           |
+| Grafana    | http://localhost:3002        | admin/admin |
 
-| Service | URL | Login |
-|---------|-----|-------|
-| Frontend (React) | http://localhost:3000 | - |
-| Backend API | http://localhost:3001 | - |
-| API Health | http://localhost:3001/health | - |
-| Metrics | http://localhost:3001/metrics | - |
-| Prometheus | http://localhost:9090 | - |
-| Grafana | http://localhost:3002 | admin / admin |
-
----
-
-## 🧪 Tests
+## Tests
 
 ```bash
-# Backend
-cd backend && npm ci && npm test
-
-# Frontend build
-cd frontend && npm ci && npm run build
+cd backend && npm install && npm test
 ```
 
----
-
-## 🐳 Docker
-
-```bash
-# Build individuel
-docker build -t tp-backend ./backend
-docker build -t tp-frontend ./frontend
-
-# Compose
-docker compose up -d        # démarrer
-docker compose down         # arrêter
-docker compose ps           # statut
-docker compose logs backend # logs d'un service
-```
-
----
-
-## 🏗️ Infrastructure (Terraform)
+## Infrastructure (Terraform)
 
 ```bash
 cd terraform
-
-# Initialiser
 terraform init
-
-# Planifier (preview)
 terraform plan
-
-# Appliquer (crée le serveur AWS)
-terraform apply
-
-# Récupérer l'IP du serveur
+terraform apply       # crée le serveur AWS
 terraform output server_ip
-
-# Détruire l'infrastructure
 terraform destroy
 ```
 
-> ⚠️ Nécessite des credentials AWS configurés (`aws configure`)
+> Nécessite des credentials AWS (`aws configure`)
 
----
-
-## 📦 Déploiement (Ansible)
+## Déploiement (Ansible)
 
 ```bash
-cd ansible
-
-# Modifier inventory.ini avec l'IP du serveur
-# ansible/inventory.ini → remplacer 1.2.3.4 par l'IP Terraform
-
-# Tester la connexion
-ansible -i inventory.ini app_servers -m ping
-
-# Déployer
-ansible-playbook -i inventory.ini deploy.yml
+# Mettre à jour l'IP dans ansible/inventory.ini
+ansible-playbook -i ansible/inventory.ini ansible/deploy.yml
 ```
 
----
+## CI/CD (GitHub Actions)
 
-## 🔄 CI/CD (GitHub Actions)
+Pipeline déclenché automatiquement sur push :
 
-Le pipeline `.github/workflows/ci-cd.yml` s'exécute automatiquement :
+- **`master`** → Tests + Build Docker + Deploy
 
-1. **Push sur `develop`** → Tests backend + frontend
-2. **Push sur `main`** → Tests + Build Docker + Deploy
+Secrets à configurer dans Settings → Secrets → Actions :
 
-### Configurer les secrets GitHub
-
-Dans Settings → Secrets → Actions :
 ```
-DOCKER_USERNAME    # Votre Docker Hub username
-DOCKER_PASSWORD    # Votre Docker Hub password
-SERVER_HOST        # IP de votre serveur
-SERVER_USER        # ubuntu
-SSH_PRIVATE_KEY    # Clé SSH privée
+DOCKER_USERNAME
+DOCKER_PASSWORD
+SERVER_HOST
+SERVER_USER
+SSH_PRIVATE_KEY
 ```
 
----
+## API Endpoints
 
-## 📊 Monitoring
-
-### Prometheus
-- Scrape les métriques du backend toutes les 15s
-- Accès : http://localhost:9090
-
-### Grafana
-- Dashboard pré-configuré "DevOps TP Dashboard"
-- Métriques disponibles :
-  - Total requêtes HTTP
-  - Requêtes par méthode (GET/POST/PUT/DELETE)
-  - Taux de requêtes (req/s)
-  - Mémoire Node.js (heap used/total)
-
----
-
-## 🔌 API Endpoints
-
-| Méthode | Route | Description |
-|---------|-------|-------------|
-| GET | /health | Santé de l'application |
-| GET | /metrics | Métriques Prometheus |
-| GET | /api/tasks | Liste toutes les tâches |
-| POST | /api/tasks | Créer une tâche `{ title }` |
-| PUT | /api/tasks/:id | Modifier `{ done: true/false }` |
-| DELETE | /api/tasks/:id | Supprimer une tâche |
-
----
-
-## 🛠️ Développement local (sans Docker)
-
-```bash
-# Terminal 1 - PostgreSQL
-docker run -d -p 5432:5432 \
-  -e POSTGRES_DB=taskdb \
-  -e POSTGRES_USER=postgres \
-  -e POSTGRES_PASSWORD=password \
-  postgres:15-alpine
-
-# Terminal 2 - Backend
-cd backend && npm install && npm run dev
-
-# Terminal 3 - Frontend
-cd frontend && npm install && npm start
-```
+| Méthode | Route          | Description               |
+| ------- | -------------- | ------------------------- |
+| GET     | /health        | Santé de l'application    |
+| GET     | /metrics       | Métriques Prometheus      |
+| GET     | /api/tasks     | Liste toutes les tâches   |
+| POST    | /api/tasks     | Créer une tâche `{title}` |
+| PUT     | /api/tasks/:id | Modifier `{done: bool}`   |
+| DELETE  | /api/tasks/:id | Supprimer une tâche       |
