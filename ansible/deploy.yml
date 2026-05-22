@@ -1,0 +1,86 @@
+---
+# ─────────────────────────────────────────────────────
+# Ansible Playbook - Deploy DevOps TP application
+# Usage: ansible-playbook -i inventory.ini deploy.yml
+# ─────────────────────────────────────────────────────
+
+- name: Deploy DevOps TP Application
+  hosts: app_servers
+  become: true
+
+  vars:
+    app_dir: /opt/devops-tp
+    repo_url: https://github.com/YOUR_USERNAME/devops-tp.git
+
+  tasks:
+    - name: Update apt packages
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install required packages
+      apt:
+        name:
+          - docker.io
+          - docker-compose-plugin
+          - git
+          - curl
+        state: present
+
+    - name: Start and enable Docker
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Add ubuntu user to docker group
+      user:
+        name: ubuntu
+        groups: docker
+        append: yes
+
+    - name: Clone or update repository
+      git:
+        repo: "{{ repo_url }}"
+        dest: "{{ app_dir }}"
+        version: main
+        force: yes
+
+    - name: Create .env file
+      copy:
+        dest: "{{ app_dir }}/.env"
+        content: |
+          DB_HOST=postgres
+          DB_NAME=taskdb
+          DB_USER=postgres
+          DB_PASSWORD=password
+          PORT=3001
+
+    - name: Pull latest Docker images
+      command: docker compose pull
+      args:
+        chdir: "{{ app_dir }}"
+
+    - name: Start application with Docker Compose
+      command: docker compose up -d --remove-orphans
+      args:
+        chdir: "{{ app_dir }}"
+
+    - name: Wait for backend to be healthy
+      uri:
+        url: http://localhost:3001/health
+        status_code: 200
+      register: result
+      until: result.status == 200
+      retries: 10
+      delay: 5
+
+    - name: Show application status
+      command: docker compose ps
+      args:
+        chdir: "{{ app_dir }}"
+      register: status
+
+    - name: Print status
+      debug:
+        msg: "{{ status.stdout_lines }}"

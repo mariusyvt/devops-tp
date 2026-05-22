@@ -1,0 +1,46 @@
+{
+  "title": "DevOps TP Dashboard",
+  "uid": "devops-tp",
+  "panels": [
+    {
+      "id": 1,
+      "title": "HTTP Requests Total",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
+      "targets": [
+        { "expr": "sum(http_requests_total)", "legendFormat": "Total Requests" }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Requests per Method",
+      "type": "bargauge",
+      "gridPos": { "x": 6, "y": 0, "w": 10, "h": 4 },
+      "targets": [
+        { "expr": "sum by(method) (http_requests_total)", "legendFormat": "{{method}}" }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "HTTP Requests Rate",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 4, "w": 16, "h": 8 },
+      "targets": [
+        { "expr": "rate(http_requests_total[1m])", "legendFormat": "{{method}} {{route}}" }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Node.js Memory Usage",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 12, "w": 16, "h": 8 },
+      "targets": [
+        { "expr": "nodejs_heap_size_used_bytes", "legendFormat": "Heap Used" },
+        { "expr": "nodejs_heap_size_total_bytes", "legendFormat": "Heap Total" }
+      ]
+    }
+  ],
+  "schemaVersion": 36,
+  "version": 1,
+  "refresh": "10s"
+}
